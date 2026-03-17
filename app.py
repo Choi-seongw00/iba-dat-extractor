@@ -237,12 +237,41 @@ def apply_correction_rules(
 
 _STRIP_PREFIX = re.compile(r"^.*?\]")
 _NON_ALNUM = re.compile(r"[^a-z0-9가-힣]+")
+_PREFIX_STRIP_ORDER = (
+    ("Groups.",),
+    ("S7_EXPLORER.", "S7-EXPLORER.", "S7-EXPLOREP."),
+)
+_PREFIX_STRIP_PATTERNS = (
+    re.compile(r"^\.?M\d{2}\.\d+\s+ACM1\b\s*", re.IGNORECASE),
+)
+
+
+def _strip_known_prefixes(name: str) -> str:
+    """알려진 접두사를 지정된 순서대로 제거한다."""
+    s = name.strip()
+    for prefix_group in _PREFIX_STRIP_ORDER:
+        while True:
+            for prefix in prefix_group:
+                if s.startswith(prefix):
+                    s = s[len(prefix):].strip()
+                    break
+            else:
+                break
+
+    for pattern in _PREFIX_STRIP_PATTERNS:
+        while True:
+            updated = pattern.sub("", s, count=1).strip()
+            if updated == s:
+                break
+            s = updated
+    return s
 
 
 def _normalize(name: str) -> str:
     """채널명/태그명 정규화: 접두사 제거 + 소문자 + 공백/특수문자 통일"""
     s = _STRIP_PREFIX.sub("", name).strip()  # [...] 접두사 제거
-    s = s.replace("Groups.", "").replace("_", " ")
+    s = _strip_known_prefixes(s)
+    s = s.replace("_", " ")
     s = _NON_ALNUM.sub(" ", s.lower()).strip()
     return s
 
@@ -300,6 +329,73 @@ def match_tags_to_channels(
                 low_conf.append((tag, best_ch, best_final))
 
     return matched, low_conf, score_details
+
+
+def _parse_csv_keywords(text: str) -> list[str]:
+    return [token.strip() for token in text.split(",") if token.strip()]
+
+
+def _compile_like_pattern(keyword: str) -> re.Pattern[str]:
+    escaped = re.escape(keyword)
+    body = escaped.replace(r"\%", ".*").replace(r"\_", ".")
+    if "%" not in keyword and "_" not in keyword:
+        body = f".*{body}.*"
+    return re.compile(body, re.IGNORECASE)
+
+
+def search_channels_like(
+    channel_names: list[str],
+    keywords_csv: str,
+    match_mode: str = "OR",
+    per_keyword_limit: int = 200,
+) -> tuple[list[dict[str, str]], list[str], int]:
+    keywords = _parse_csv_keywords(keywords_csv)
+    if not keywords:
+        return [], [], 0
+
+    patterns = [(keyword, _compile_like_pattern(keyword)) for keyword in keywords]
+
+    if match_mode.upper() == "AND":
+        matched_channels = [
+            channel
+            for channel in channel_names
+            if all(pattern.search(channel) for _, pattern in patterns)
+        ]
+        no_match_keywords = [
+            keyword
+            for keyword, pattern in patterns
+            if not any(pattern.search(channel) for channel in channel_names)
+        ]
+
+        rows = [
+            {"검색어": " AND ".join(keywords), "채널명": channel}
+            for channel in matched_channels[:per_keyword_limit]
+        ]
+        overflow_count = len(matched_channels) - per_keyword_limit
+        if overflow_count > 0:
+            rows.append({"검색어": " AND ".join(keywords), "채널명": f"... {overflow_count}건 더 있음"})
+        return rows, no_match_keywords, len(matched_channels)
+
+    rows: list[dict[str, str]] = []
+    no_match_keywords: list[str] = []
+    total_hits = 0
+
+    for keyword, pattern in patterns:
+        matched = [channel for channel in channel_names if pattern.search(channel)]
+        total_hits += len(matched)
+
+        if not matched:
+            no_match_keywords.append(keyword)
+            continue
+
+        for channel in matched[:per_keyword_limit]:
+            rows.append({"검색어": keyword, "채널명": channel})
+
+        overflow_count = len(matched) - per_keyword_limit
+        if overflow_count > 0:
+            rows.append({"검색어": keyword, "채널명": f"... {overflow_count}건 더 있음"})
+
+    return rows, no_match_keywords, total_hits
 
 
 # ─────────────────────────────────────────────
@@ -482,6 +578,32 @@ if tags and dat_input_valid:
             st.error(f"채널 목록 로딩 실패: {e}")
 
     if channel_names:
+        st.markdown("##### 채널명 LIKE 검색")
+        st.caption("`,`로 여러 검색어를 입력하면 AND 조건으로 검색합니다. `%`, `_` 와일드카드를 지원합니다.")
+
+        keyword_query = st.text_input(
+            "검색어",
+            value="",
+            placeholder="FRONT CLAMP LEFT, ROCKER ARM, %FEEDING%",
+            key="channel_like_search",
+        )
+        if keyword_query.strip():
+            rows, no_match_keywords, total_hits = search_channels_like(
+                channel_names,
+                keyword_query,
+                match_mode="AND",
+            )
+            if rows:
+                import pandas as pd
+
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, height=260)
+                st.info(f"LIKE AND 검색 결과: {total_hits}건")
+            else:
+                st.warning("검색어에 해당하는 채널명이 없습니다.")
+
+            if no_match_keywords:
+                st.caption(f"미일치 검색어: {', '.join(no_match_keywords)}")
+
         exact_match_count = sum(1 for t in tags if t in channel_names)
         fuzzy_needed = len(tags) - exact_match_count
 
