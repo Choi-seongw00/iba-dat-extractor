@@ -1,0 +1,15 @@
+[project]
+name = "iba-dat-extractor"
+version = "0.1.0"
+description = "IBA DAT 파일에서 tag 데이터를 추출하여 Parquet로 변환하는 도구"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pyarrow>=23.0.1",
+    "streamlit>=1.55.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+]
