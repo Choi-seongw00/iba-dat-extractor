@@ -264,6 +264,29 @@ wheels = [
 ]
 
 [[package]]
+name = "iba-dat-extractor"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "pyarrow" },
+    { name = "streamlit" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ipykernel" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pyarrow", specifier = ">=23.0.1" },
+    { name = "streamlit", specifier = ">=1.55.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ipykernel", specifier = ">=7.2.0" }]
+
+[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://pypi.org/simple" }
@@ -408,29 +431,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/02/49/9d1284d0dc65e2c75
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e7/e7/80988e32bf6f73919a113473a604f5a8f09094de312b9d52b79c2df7612b/jupyter_core-5.9.1-py3-none-any.whl", hash = "sha256:ebf87fdc6073d142e114c72c9e29a9d7ca03fad818c5d300ce2adc1fb0743407", size = 29032, upload-time = "2025-10-16T19:19:16.783Z" },
 ]
-
-[[package]]
-name = "main-project"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "pyarrow" },
-    { name = "streamlit" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "ipykernel" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pyarrow", specifier = ">=23.0.1" },
-    { name = "streamlit", specifier = ">=1.55.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ipykernel", specifier = ">=7.2.0" }]
 
 [[package]]
 name = "markupsafe"
